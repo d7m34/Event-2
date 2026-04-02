@@ -241,9 +241,6 @@ function drawWheelFrame(names, rotation) {
   return { canvas, ctx };
 }
 
-// ═══════════════════════════════════════════════════════
-// ✅ إصلاح #1: الروليت يدور مباشر قدام الأعضاء ويوقف ويبين الفائز
-// ═══════════════════════════════════════════════════════
 async function spinWheel(channel, names, title) {
   const n = names.length;
   if (n === 0) return null;
@@ -259,19 +256,15 @@ async function spinWheel(channel, names, title) {
   reordered.push(winnerName);
   reordered = reordered.reverse();
 
-  const W = CONFIG.ROULETTE.WIDTH, H = CONFIG.ROULETTE.HEIGHT;
   const sliceAngle = (2 * Math.PI) / n;
-
   const targetAngle = sliceAngle / 2;
   const fullRotations = 6 + Math.floor(Math.random() * 4);
   const totalRotation = fullRotations * 2 * Math.PI + targetAngle;
 
-  // إرسال أول فريم ثابت كصورة عادية
   const { canvas: firstCanvas } = drawWheelFrame(reordered, 0);
   const firstAtt = new AttachmentBuilder(firstCanvas.toBuffer('image/png'), { name: 'wheel.png' });
   const wheelMsg = await channel.send({ content: `**🎰 ${title}**\n\`\`\`\nجاري الدوران...\n\`\`\``, files: [firstAtt] });
 
-  // دوران تدريجي بتحديث الصورة
   const steps = [0.05, 0.1, 0.18, 0.28, 0.4, 0.52, 0.64, 0.75, 0.84, 0.91, 0.96, 0.99, 1.0];
   for (const step of steps) {
     const easedT = easeOutQuad(step);
@@ -287,7 +280,6 @@ async function spinWheel(channel, names, title) {
     } catch {}
   }
 
-  // فريم أخير مع اسم الفائز
   await new Promise(r => setTimeout(r, 800));
   const { canvas: finalCanvas } = drawWheelFrame(reordered, -totalRotation);
   const finalAtt = new AttachmentBuilder(finalCanvas.toBuffer('image/png'), { name: 'wheel.png' });
@@ -371,17 +363,17 @@ async function handleGame(message, guildData) {
       participants.add(i.user.id);
       const u = EmbedBuilder.from(joinEmbed).setDescription(`\`\`\`\n🏆 مستعد للتحدي؟ انضم الآن!\n\`\`\`\n**المسجلين:** ${participants.size}\n**⏱️ يغلق خلال:** ${formatTimer(remaining)}\n**🎮 مدة التحدي:** ${formatTimer(gameTimer)}`);
       await joinMsg.edit({ embeds: [u] }).catch(() => {});
-      await i.reply({ content: `⚡ تم! (${participants.size})`, ephemeral: true });
+      await i.reply({ content: `⚡ تم! (${participants.size})`, flags: 64 });
     }
     if (i.customId === 'g_leave') {
       participants.delete(i.user.id);
       const u = EmbedBuilder.from(joinEmbed).setDescription(`\`\`\`\n🏆 مستعد للتحدي؟ انضم الآن!\n\`\`\`\n**المسجلين:** ${participants.size}\n**⏱️ يغلق خلال:** ${formatTimer(remaining)}\n**🎮 مدة التحدي:** ${formatTimer(gameTimer)}`);
       await joinMsg.edit({ embeds: [u] }).catch(() => {});
-      await i.reply({ content: '🚪 تم.', ephemeral: true });
+      await i.reply({ content: '🚪 تم.', flags: 64 });
     }
     if (i.customId === 'g_start') {
-      if (!isAdmin(i.user.id, guildData)) return i.reply({ content: '❌', ephemeral: true });
-      if (participants.size < 2) return i.reply({ content: '❌ 2 لاعبين على الأقل.', ephemeral: true });
+      if (!isAdmin(i.user.id, guildData)) return i.reply({ content: '❌', flags: 64 });
+      if (participants.size < 2) return i.reply({ content: '❌ 2 لاعبين على الأقل.', flags: 64 });
       started = true; clearInterval(timerInterval); collector.stop(); await i.deferUpdate();
     }
   });
@@ -440,9 +432,6 @@ async function handleGame(message, guildData) {
   });
   await new Promise(r => setTimeout(r, 2000));
 
-  // ═══════════════════════════════════════════════════════
-  // ✅ إصلاح #2: التحديات ما تنحذف نهائياً، بس تنحذف من الجولة وترجع بالجولة الجديدة
-  // ═══════════════════════════════════════════════════════
   if (!guildData.usedChallenges) guildData.usedChallenges = [];
   let available = allChallenges.filter(c => !guildData.usedChallenges.includes(c));
   if (!available.length) {
@@ -484,9 +473,6 @@ async function handleGame(message, guildData) {
     ).setColor(CONFIG.COLORS.GAME).setFooter({ text: CONFIG.FOOTER })]
   });
 
-  // ═══════════════════════════════════════════════════════
-  // ✅ إصلاح #3: كل شخص محاسب على آخر رقم كتبه هو بنفسه
-  // ═══════════════════════════════════════════════════════
   let playerBids = {};
   playerBids[player1.id] = 0;
   playerBids[player2.id] = 0;
@@ -526,12 +512,10 @@ async function handleGame(message, guildData) {
     chosenPlayer = chosenId === player1.id ? player1 : player2;
     opponent = chosenId === player1.id ? player2 : player1;
 
-    // الرقم المحاسب عليه هو آخر رقم كتبه هو بنفسه
     const chosenBid = playerBids[chosenPlayer.id] || 0;
 
     await pickInt.update({ embeds: [makeEmbed('⚡', `\`\`\`\n${chosenPlayer.displayName} سيعدد!\nالرقم المطلوب: ${chosenBid}\n\`\`\``, CONFIG.COLORS.SUCCESS)], components: [] });
 
-    // تحديث lastBid ليكون رقم الشخص المختار
     lastBid = chosenBid;
   } catch {
     bidCollector.stop(); guildData = getGuild(message.guild.id); guildData.activeGame = null; saveGuild(message.guild.id, guildData);
@@ -628,7 +612,7 @@ client.on('interactionCreate', async (interaction) => {
   const parts = interaction.customId.split('_');
   const action = parts[1], playerId = parts[2], opponentId = parts[3], guildId = parts[4];
   const guildData = getGuild(guildId);
-  if (!isAdmin(interaction.user.id, guildData)) return interaction.reply({ content: '❌', ephemeral: true });
+  if (!isAdmin(interaction.user.id, guildData)) return interaction.reply({ content: '❌', flags: 64 });
 
   const passed = action === 'pass';
   const winnerId = passed ? playerId : opponentId, loserId = passed ? opponentId : playerId;
@@ -713,14 +697,16 @@ client.on('messageCreate', async (message) => {
 
       case 'settimer': {
         if (!isAdmin(message.author.id, guildData)) return;
-        const ts = new StringSelectMenuBuilder().setCustomId('tt').setPlaceholder('نوع التايمر...').addOptions([
+        const ttId = `tt_${Date.now()}`;
+        const ts = new StringSelectMenuBuilder().setCustomId(ttId).setPlaceholder('نوع التايمر...').addOptions([
           { label: '⏱️ تايمر التسجيل', value: 'join', description: `الحالي: ${formatTimer(guildData.joinTimer || 60)}` },
           { label: '🎮 تايمر اللعب', value: 'game', description: `الحالي: ${formatTimer(guildData.gameTimer || CONFIG.GAME_TIMER)}` }
         ]);
         const tMsg = await message.channel.send({ embeds: [makeEmbed('⏱️', '```\nاختر التايمر\n```', CONFIG.COLORS.WARNING)], components: [new ActionRowBuilder().addComponents(ts)] });
         try {
-          const tI = await tMsg.awaitMessageComponent({ filter: i => i.customId === 'tt' && i.user.id === message.author.id, time: 20000 });
+          const tI = await tMsg.awaitMessageComponent({ filter: i => i.customId === ttId && i.user.id === message.author.id, time: 20000 });
           const type = tI.values[0];
+          const tvId = `tv_${Date.now()}`;
           const opts = [
             { label: '5 ثواني', value: '5' }, { label: '7 ثواني', value: '7' }, { label: '10 ثواني', value: '10' },
             { label: '15 ثانية', value: '15' }, { label: '20 ثانية', value: '20' }, { label: '30 ثانية', value: '30' },
@@ -729,9 +715,9 @@ client.on('messageCreate', async (message) => {
             { label: '10 دقائق', value: '600' }, { label: '15 دقيقة', value: '900' }, { label: '20 دقيقة', value: '1200' },
             { label: '30 دقيقة', value: '1800' }
           ];
-          const tp = new StringSelectMenuBuilder().setCustomId('tv').setPlaceholder('المدة...').addOptions(opts);
+          const tp = new StringSelectMenuBuilder().setCustomId(tvId).setPlaceholder('المدة...').addOptions(opts);
           await tI.update({ embeds: [makeEmbed(`⏱️ ${type === 'join' ? 'التسجيل' : 'اللعب'}`, `\`\`\`\nالحالي: ${formatTimer(type === 'join' ? guildData.joinTimer : guildData.gameTimer)}\n\`\`\``, CONFIG.COLORS.WARNING)], components: [new ActionRowBuilder().addComponents(tp)] });
-          const vI = await tMsg.awaitMessageComponent({ filter: i => i.customId === 'tv' && i.user.id === message.author.id, time: 20000 });
+          const vI = await tMsg.awaitMessageComponent({ filter: i => i.customId === tvId && i.user.id === message.author.id, time: 20000 });
           const val = parseInt(vI.values[0]);
           if (type === 'join') guildData.joinTimer = val; else guildData.gameTimer = val;
           saveGuild(message.guild.id, guildData);
@@ -761,11 +747,12 @@ client.on('messageCreate', async (message) => {
       case 'removechallenge': {
         if (!isAdmin(message.author.id, guildData)) return;
         if (!guildData.challenges?.length) return message.reply({ embeds: [makeEmbed('❌', 'فارغ.', CONFIG.COLORS.ERROR)] });
+        const dcId = `dc_${Date.now()}`;
         const opts = guildData.challenges.slice(0, 25).map((c, i) => ({ label: truncName(c, 50), value: `${i}`, description: guildData.usedChallenges?.includes(c) ? '✅ مستخدم' : '⬜ متاح' }));
-        const dm = new StringSelectMenuBuilder().setCustomId('dc').setPlaceholder('اختر...').addOptions(opts);
+        const dm = new StringSelectMenuBuilder().setCustomId(dcId).setPlaceholder('اختر...').addOptions(opts);
         const dMsg = await message.channel.send({ embeds: [makeEmbed('🗑️', '```\nاختر التحدي\n```', CONFIG.COLORS.WARNING)], components: [new ActionRowBuilder().addComponents(dm)] });
         try {
-          const di = await dMsg.awaitMessageComponent({ filter: i => i.customId === 'dc' && i.user.id === message.author.id, time: 15000 });
+          const di = await dMsg.awaitMessageComponent({ filter: i => i.customId === dcId && i.user.id === message.author.id, time: 15000 });
           const removed = guildData.challenges.splice(parseInt(di.values[0]), 1)[0];
           guildData.usedChallenges = (guildData.usedChallenges || []).filter(c => c !== removed);
           saveGuild(message.guild.id, guildData);
@@ -805,9 +792,6 @@ client.on('messageCreate', async (message) => {
         break;
       }
 
-      // ═══════════════════════════════════════════════════════
-      // ✅ إصلاح #4: أمر addcmd و admin — إصلاح السلكت منيو والأوامر
-      // ═══════════════════════════════════════════════════════
       case 'addcmd': {
         if (!isOwner(message.author.id, guildData)) return;
         const aliases = guildData.aliases || JSON.parse(JSON.stringify(DEFAULT_ALIASES));
@@ -817,8 +801,8 @@ client.on('messageCreate', async (message) => {
           description: truncName(`الاختصارات: ${v.join(', ')}`, 100)
         }));
 
-        const cmdMenu = new StringSelectMenuBuilder().setCustomId(`addcmd_pick_${Date.now()}`).setPlaceholder('اختر الأمر لإضافة اختصار له...').addOptions(cmdList);
-        const cmdMenuId = cmdMenu.data.custom_id;
+        const cmdMenuId = `addcmd_pick_${Date.now()}`;
+        const cmdMenu = new StringSelectMenuBuilder().setCustomId(cmdMenuId).setPlaceholder('اختر الأمر لإضافة اختصار له...').addOptions(cmdList);
         const cmdMsg = await message.channel.send({
           embeds: [makeEmbed('🔧 إضافة اختصار', '```\nاختر الأمر المراد إضافة اختصار له\n```\n' +
             Object.entries(aliases).map(([k, v]) => `**$${k}** → ${v.map(a => `\`${a}\``).join(', ')}`).join('\n'),
@@ -930,9 +914,19 @@ client.on('messageCreate', async (message) => {
             case 'bs': { const s = await wm('الستاتس'); if (!s) break; client.user.setActivity(s, { type: 0 }); await aMsg.edit({ embeds: [makeEmbed('✅', `\`\`\`\n${s}\n\`\`\``, CONFIG.COLORS.SUCCESS)], components: [] }); break; }
             case 'bp': {
               const presenceMenuId = `pp_${Date.now()}`;
-              const pm = new StringSelectMenuBuilder().setCustomId(presenceMenuId).setPlaceholder('الحالة...').addOptions([{ label: 'متصل', value: 'online', emoji: '🟢' }, { label: 'بعيد', value: 'idle', emoji: '🟡' }, { label: 'مشغول', value: 'dnd', emoji: '🔴' }, { label: 'مخفي', value: 'invisible', emoji: '⚫' }]);
+              const pm = new StringSelectMenuBuilder().setCustomId(presenceMenuId).setPlaceholder('الحالة...').addOptions([
+                { label: 'متصل', value: 'online', emoji: '🟢' },
+                { label: 'بعيد', value: 'idle', emoji: '🟡' },
+                { label: 'مشغول', value: 'dnd', emoji: '🔴' },
+                { label: 'مخفي', value: 'invisible', emoji: '⚫' }
+              ]);
               await aMsg.edit({ components: [new ActionRowBuilder().addComponents(pm)] });
-              try { const pi = await aMsg.awaitMessageComponent({ filter: i => i.customId === presenceMenuId && i.user.id === message.author.id, time: 15000 }); client.user.setPresence({ status: pi.values[0] }); await pi.update({ embeds: [makeEmbed('✅', `\`\`\`\n${pi.values[0]}\n\`\`\``, CONFIG.COLORS.SUCCESS)], components: [] }); } catch {} break;
+              try {
+                const pi = await aMsg.awaitMessageComponent({ filter: i => i.customId === presenceMenuId && i.user.id === message.author.id, time: 15000 });
+                client.user.setPresence({ status: pi.values[0] });
+                await pi.update({ embeds: [makeEmbed('✅', `\`\`\`\n${pi.values[0]}\n\`\`\``, CONFIG.COLORS.SUCCESS)], components: [] });
+              } catch {}
+              break;
             }
             case 'aa': {
               const m = await wm('منشن العضو أو الآيدي');
@@ -955,7 +949,13 @@ client.on('messageCreate', async (message) => {
               }
               const dm = new StringSelectMenuBuilder().setCustomId(daMenuId).setPlaceholder('اختر الأدمن لحذفه...').addOptions(adminOptions);
               await aMsg.edit({ embeds: [makeEmbed('➖', '```\nاختر الأدمن لحذفه\n```', CONFIG.COLORS.WARNING)], components: [new ActionRowBuilder().addComponents(dm)] });
-              try { const di = await aMsg.awaitMessageComponent({ filter: i => i.customId === daMenuId && i.user.id === message.author.id, time: 15000 }); guildData.admins = guildData.admins.filter(id => id !== di.values[0]); saveGuild(message.guild.id, guildData); await di.update({ embeds: [makeEmbed('✅', `<@${di.values[0]}> تم حذفه من الأدمنز ❌`, CONFIG.COLORS.SUCCESS)], components: [] }); } catch {} break;
+              try {
+                const di = await aMsg.awaitMessageComponent({ filter: i => i.customId === daMenuId && i.user.id === message.author.id, time: 15000 });
+                guildData.admins = guildData.admins.filter(id => id !== di.values[0]);
+                saveGuild(message.guild.id, guildData);
+                await di.update({ embeds: [makeEmbed('✅', `<@${di.values[0]}> تم حذفه ❌`, CONFIG.COLORS.SUCCESS)], components: [] });
+              } catch {}
+              break;
             }
             case 'ao': {
               const m = await wm('منشن العضو أو الآيدي');
@@ -978,7 +978,13 @@ client.on('messageCreate', async (message) => {
               }
               const dm = new StringSelectMenuBuilder().setCustomId(doMenuId).setPlaceholder('اختر الأونر لحذفه...').addOptions(ownerOptions);
               await aMsg.edit({ embeds: [makeEmbed('➖', '```\nاختر الأونر لحذفه\n```', CONFIG.COLORS.WARNING)], components: [new ActionRowBuilder().addComponents(dm)] });
-              try { const di = await aMsg.awaitMessageComponent({ filter: i => i.customId === doMenuId && i.user.id === message.author.id, time: 15000 }); guildData.owners = guildData.owners.filter(id => id !== di.values[0]); saveGuild(message.guild.id, guildData); await di.update({ embeds: [makeEmbed('✅', `<@${di.values[0]}> تم حذفه من الأونرز ❌`, CONFIG.COLORS.SUCCESS)], components: [] }); } catch {} break;
+              try {
+                const di = await aMsg.awaitMessageComponent({ filter: i => i.customId === doMenuId && i.user.id === message.author.id, time: 15000 });
+                guildData.owners = guildData.owners.filter(id => id !== di.values[0]);
+                saveGuild(message.guild.id, guildData);
+                await di.update({ embeds: [makeEmbed('✅', `<@${di.values[0]}> تم حذفه ❌`, CONFIG.COLORS.SUCCESS)], components: [] });
+              } catch {}
+              break;
             }
           }
         } catch { await aMsg.edit({ components: [] }).catch(() => {}); }
