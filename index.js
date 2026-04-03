@@ -226,10 +226,12 @@ function drawWheelFrame(names, rotation) {
   return { canvas, ctx };
 }
 
+// ✅ تعديل ١: الروليت يدور دايماً حتى لو لاعب واحد
 async function spinWheel(channel, names, title) {
   const n = names.length;
   if (n === 0) return null;
-  if (n === 1) return { name: names[0], index: 0 };
+  // شلنا الشرط: if (n === 1) return { name: names[0], index: 0 };
+  // الآن الروليت يدور حتى لو اسم واحد
   const originalWinIdx = Math.floor(Math.random() * n);
   const winnerName = names[originalWinIdx];
   let reordered = [];
@@ -294,13 +296,35 @@ async function getOrCreateWinnerRole(guild) {
   return role;
 }
 
+// ✅ دالة مساعدة لقفل الشات على الكل ما عدا البوت والأدمنز
+async function lockChat(gameChannel, guild, botMember, guildData) {
+  try {
+    await gameChannel.permissionOverwrites.set([
+      { id: guild.id, deny: [PermissionsBitField.Flags.SendMessages] },
+      { id: botMember.id, allow: [PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.ManageChannels, PermissionsBitField.Flags.ManageMessages] }
+    ]);
+    for (const aid of [...new Set([...(guildData.admins || []), ...(guildData.owners || []), OWNER_ID])]) {
+      try { await gameChannel.permissionOverwrites.edit(aid, { SendMessages: true, ViewChannel: true }); } catch {}
+    }
+  } catch {}
+}
+
+// ✅ دالة مساعدة لفتح الشات للكل
+async function unlockChat(gameChannel, guild) {
+  try {
+    await gameChannel.permissionOverwrites.set([
+      { id: guild.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+    ]);
+  } catch {}
+}
+
 // دالة لتشغيل جولة واحدة بين لاعبين
 async function playRound(message, gameChannel, botMember, guildData, player1, player2, selectedChallenge, gameTimer) {
   await gameChannel.send({
     embeds: [new EmbedBuilder().setAuthor({ name: '⚔️ المواجهة' }).setDescription(`\`\`\`\n${player1.displayName}  ⚡  ${player2.displayName}\n\`\`\``).setColor(CONFIG.COLORS.ACCENT).setFooter({ text: CONFIG.FOOTER })]
   });
 
-  // فتح الشات للمزايدة
+  // ✅ تعديل ٢: فتح الشات للاعبين المتواجهين فقط + الأدمنز
   try {
     await gameChannel.permissionOverwrites.set([
       { id: message.guild.id, deny: [PermissionsBitField.Flags.SendMessages] },
@@ -382,10 +406,11 @@ async function playRound(message, gameChannel, botMember, guildData, player1, pl
     embeds: [makeEmbed('⚡', `\`\`\`\n${chosenPlayer.displayName} سيعدد!\nالرقم المطلوب: ${chosenBid}\n\`\`\``, CONFIG.COLORS.SUCCESS)]
   });
 
-  // إغلاق الشات
+  // ✅ تعديل ٢: بعد $روح — قفل الشات على الكل ما عدا اللي يعدد (chosenPlayer) والأدمن
   try {
     await gameChannel.permissionOverwrites.set([
       { id: message.guild.id, deny: [PermissionsBitField.Flags.SendMessages] },
+      { id: chosenPlayer.id, allow: [PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ViewChannel] },
       { id: botMember.id, allow: [PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.ManageChannels, PermissionsBitField.Flags.ManageMessages] }
     ]);
     for (const aid of [...new Set([...(guildData.admins || []), ...(guildData.owners || []), OWNER_ID])]) {
@@ -407,9 +432,12 @@ async function playRound(message, gameChannel, botMember, guildData, player1, pl
     const readyInt = await readyMsg.awaitMessageComponent({ filter: i => i.customId === `ready_${chosenPlayer.id}` && i.user.id === chosenPlayer.id, time: 120000 });
     await readyInt.update({ embeds: [makeEmbed('✅', `\`\`\`\n${chosenPlayer.displayName} جاهز!\n\`\`\``, CONFIG.COLORS.SUCCESS)], components: [] });
   } catch {
-    try { await gameChannel.permissionOverwrites.set([{ id: message.guild.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }]); } catch {}
+    try { await unlockChat(gameChannel, message.guild); } catch {}
     return null;
   }
+
+  // قفل الشات على اللي يعدد قبل العد التنازلي
+  try { await gameChannel.permissionOverwrites.edit(chosenPlayer.id, { SendMessages: false }); } catch {}
 
   const countMsg = await gameChannel.send({ content: '```\n   3️⃣\n```' });
   await new Promise(r => setTimeout(r, 1000));
@@ -539,6 +567,9 @@ async function handleGame(message, guildData) {
 
   guildData.activeGame.phase = 'roulette1'; saveGuild(message.guild.id, guildData);
 
+  // ✅ تعديل ٢: قفل الشات عند بداية الفعالية
+  await lockChat(gameChannel, message.guild, botMember, guildData);
+
   // حلقة الجولات — كل جولة لاعبين يطلعون والفائز ياخذ رول
   let remainingNames = [...playerNames];
   let remainingMembers = [...playerMembers];
@@ -546,6 +577,9 @@ async function handleGame(message, guildData) {
 
   while (remainingMembers.length >= 2) {
     roundNum++;
+
+    // ✅ قفل الشات في بداية كل جولة (بعد الفاصل أو أول جولة)
+    await lockChat(gameChannel, message.guild, botMember, guildData);
 
     if (remainingMembers.length > 2) {
       await gameChannel.send({
@@ -562,7 +596,7 @@ async function handleGame(message, guildData) {
       embeds: [new EmbedBuilder().setAuthor({ name: '⚡ اللاعب الأول' }).setDescription(`\`\`\`\n${player1.displayName}\n\`\`\``).setThumbnail(player1.user.displayAvatarURL({ size: 128 })).setColor(CONFIG.COLORS.SUCCESS).setFooter({ text: CONFIG.FOOTER })]
     });
 
-    // روليت اللاعب الثاني
+    // ✅ تعديل ١: روليت اللاعب الثاني — يدور دايماً حتى لو لاعب واحد
     const rem = remainingNames.filter((_, i) => i !== r1.index);
     const remM = remainingMembers.filter((_, i) => i !== r1.index);
 
@@ -598,7 +632,7 @@ async function handleGame(message, guildData) {
     if (!roundResult) {
       guildData = getGuild(message.guild.id);
       guildData.activeGame = null; saveGuild(message.guild.id, guildData);
-      try { await gameChannel.permissionOverwrites.set([{ id: message.guild.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }]); } catch {}
+      try { await unlockChat(gameChannel, message.guild); } catch {}
       return gameChannel.send({ embeds: [makeEmbed('❌', 'انتهت الجولة بدون نتيجة.', CONFIG.COLORS.ERROR)] });
     }
 
@@ -641,7 +675,7 @@ async function handleGame(message, guildData) {
     } catch {
       guildData = getGuild(message.guild.id);
       guildData.activeGame = null; saveGuild(message.guild.id, guildData);
-      try { await gameChannel.permissionOverwrites.set([{ id: message.guild.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }]); } catch {}
+      try { await unlockChat(gameChannel, message.guild); } catch {}
       return gameChannel.send({ embeds: [makeEmbed('❌', 'انتهى وقت التقييم.', CONFIG.COLORS.ERROR)] });
     }
 
@@ -684,11 +718,32 @@ async function handleGame(message, guildData) {
       }
     }
 
-    // لو باقي لاعبين أكثر من 1، نكمل
+    // ✅ تعديل ٣: فاصل 30 ثانية بين الجولات — الشات مفتوح للكل
     if (remainingMembers.length >= 2) {
-      await gameChannel.send({
-        embeds: [makeEmbed('🔄', `\`\`\`\nالجولة القادمة — المتبقين: ${remainingMembers.length}\n\`\`\``, CONFIG.COLORS.GAME)]
+      // فتح الشات للكل
+      await unlockChat(gameChannel, message.guild);
+
+      const breakMsg = await gameChannel.send({
+        embeds: [makeEmbed('☕ فاصل بين الجولات', `\`\`\`\nالشات مفتوح للكل!\nالجولة القادمة تبدأ خلال 30 ثانية\nالمتبقين: ${remainingMembers.length}\n\`\`\`\n⏱️ **30** ثانية`, CONFIG.COLORS.WARNING)]
       });
+
+      // عد تنازلي كل 10 ثواني
+      for (let bt = 20; bt >= 0; bt -= 10) {
+        await new Promise(r => setTimeout(r, 10000));
+        if (bt > 0) {
+          try {
+            await breakMsg.edit({
+              embeds: [makeEmbed('☕ فاصل بين الجولات', `\`\`\`\nالشات مفتوح للكل!\nالجولة القادمة تبدأ خلال ${bt} ثانية\nالمتبقين: ${remainingMembers.length}\n\`\`\`\n⏱️ **${bt}** ثانية`, CONFIG.COLORS.WARNING)]
+            });
+          } catch {}
+        } else {
+          try {
+            await breakMsg.edit({
+              embeds: [makeEmbed('🔒 انتهى الفاصل', '```\nتبدأ الجولة القادمة الآن!\n```', CONFIG.COLORS.GAME)]
+            });
+          } catch {}
+        }
+      }
     }
   }
 
@@ -696,7 +751,7 @@ async function handleGame(message, guildData) {
   guildData = getGuild(message.guild.id);
   guildData.activeGame = null; saveGuild(message.guild.id, guildData);
 
-  try { await gameChannel.permissionOverwrites.set([{ id: message.guild.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }]); } catch {}
+  try { await unlockChat(gameChannel, message.guild); } catch {}
 
   // لو باقي لاعب واحد (فردي) ما لعب
   if (remainingMembers.length === 1) {
