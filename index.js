@@ -16,7 +16,7 @@ const GIFEncoder = require('gifencoder');
 const fs = require('fs');
 const path = require('path');
 const prizeWheel = require('./prize-wheel');
-const http = require('http'); // ← إضافة للويب سيرفر
+const http = require('http');
 
 // ════════════════════════════════════════════
 // ✅ البيانات تُقرأ من Environment Variables في Render
@@ -794,6 +794,19 @@ client.on('messageCreate', async (message) => {
         break;
       }
 
+      case 'جائزة':
+      case 'prize':
+      case 'سحب': {
+        await prizeWheel.startPrizeWheel(message, client);
+        break;
+      }
+
+      case 'احصائيات_الجوائز':
+      case 'prizestats': {
+        prizeWheel.showPrizeStats(message);
+        break;
+      }
+
       case 'addcmd': {
         if (!isOwner(message.author.id, guildData)) return;
         const aliases = guildData.aliases || JSON.parse(JSON.stringify(DEFAULT_ALIASES));
@@ -944,7 +957,7 @@ client.on('messageCreate', async (message) => {
         }
         await message.reply({
           embeds: [new EmbedBuilder().setAuthor({ name: '⚡ تحدي الـ 7 ثواني' }).setDescription(
-            '**🎮:**\n`$game` `$cancel`\n\n**⚙️:**\n`$setresult #روم` `$setlog #روم` `$settimer`\n\n**📋:**\n`$addchallenge` `$removechallenge` `$challenges`\n\n**📊:**\n`$leaderboard` `$gamestats`\n\n**🔧:**\n`$admin` `$addcmd`\n\n**🎮 أثناء اللعب:**\n`$روح @اللاعب`' + aliasInfo
+            '**🎮 اللعبة:**\n`$game` `$cancel`\n\n**⚙️ الإعدادات:**\n`$setresult #روم` `$setlog #روم` `$settimer`\n\n**📋 التحديات:**\n`$addchallenge` `$removechallenge` `$challenges`\n\n**📊 الإحصائيات:**\n`$leaderboard` `$gamestats`\n\n**🎁 السحوبات:**\n`$جائزة` / `$prize` / `$سحب`\n`$احصائيات_الجوائز` / `$prizestats`\n\n**🔧 الإدارة:**\n`$admin` `$addcmd`\n\n**🎮 أثناء اللعب:**\n`$روح @اللاعب`' + aliasInfo
           ).setColor(CONFIG.COLORS.INFO).setFooter({ text: CONFIG.FOOTER })]
         });
         break;
@@ -965,5 +978,3 @@ process.on('unhandledRejection', e => console.error('Unhandled:', e));
 process.on('uncaughtException', e => console.error('Uncaught:', e));
 
 client.login(TOKEN);
-
-
