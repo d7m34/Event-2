@@ -34,12 +34,12 @@ const PRIZE_CONFIG = {
   // 🎁 الجوائز مع النسب (المجموع يجب = 100)
   // ⚠️ إذا حطيت probability: 0 معناها الجائزة تظهر بس مستحيل تطلع
   PRIZES: [
-    { name: '💎 جائزة كبرى', probability: 5 },      // 5%
-    { name: '🏆 جائزة ذهبية', probability: 10 },    // 10%
-    { name: '🎖️ جائزة فضية', probability: 15 },    // 15%
-    { name: '🎁 جائزة عادية', probability: 30 },    // 30%
-    { name: '🎫 تذكرة حظ', probability: 25 },        // 25%
-    { name: '❌ للأسف فارغ', probability: 15 }      // 15%
+    { name: '💎 نيترو قيمنق لمدة شهر ', probability: 0 },      // 5%
+    { name: '🏆 ايفكت من اختيارك', probability: 0 },    // 10%
+    { name: '🎖️ رول خاص ', probability: 30 },    // 15%
+    { name: '🎁 50 نقطة روليت', probability: 50 },    // 30%
+    { name: '🎫 حاول مرة اخرى', probability: 10 },        // 25%
+    { name: '❌ حظ اوفر', probability: 10 }      // 15%
   ],
   
   // 🎨 ألوان العجلة
