@@ -32,6 +32,7 @@ const PRIZE_CONFIG = {
   },
   
   // 🎁 الجوائز مع النسب (المجموع يجب = 100)
+  // ⚠️ إذا حطيت probability: 0 معناها الجائزة تظهر بس مستحيل تطلع
   PRIZES: [
     { name: '💎 جائزة كبرى', probability: 5 },      // 5%
     { name: '🏆 جائزة ذهبية', probability: 10 },    // 10%
@@ -191,17 +192,28 @@ function drawPrizeWheel(names, rotation) {
 // 🎯 اختيار الجائزة بناءً على النسب
 // ════════════════════════════════════════════
 function selectPrizeByProbability() {
+  // 🔒 فلترة الجوائز - فقط اللي نسبتها أكبر من 0
+  const availablePrizes = PRIZE_CONFIG.PRIZES.filter(prize => prize.probability > 0);
+  
+  // التأكد إن في جوائز متاحة
+  if (availablePrizes.length === 0) {
+    // إذا كل الجوائز صفر، نرجع أول جائزة
+    return PRIZE_CONFIG.PRIZES[0];
+  }
+  
   const rand = Math.random() * 100;
   let cumulative = 0;
   
-  for (const prize of PRIZE_CONFIG.PRIZES) {
+  // الاختيار فقط من الجوائز المتاحة (probability > 0)
+  for (const prize of availablePrizes) {
     cumulative += prize.probability;
     if (rand <= cumulative) {
       return prize;
     }
   }
   
-  return PRIZE_CONFIG.PRIZES[PRIZE_CONFIG.PRIZES.length - 1];
+  // احتياطي: نرجع آخر جائزة متاحة
+  return availablePrizes[availablePrizes.length - 1];
 }
 
 // ════════════════════════════════════════════
