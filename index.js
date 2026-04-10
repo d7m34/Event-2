@@ -903,47 +903,423 @@ client.on('messageCreate', async (message) => {
 
       case 'admin': {
         if (!isOwner(message.author.id, guildData)) return;
-        const am = new StringSelectMenuBuilder().setCustomId('am').setPlaceholder('اختر...').addOptions([
-          { label: 'اسم البوت', value: 'bn', emoji: '✏️' }, { label: 'صورة البوت', value: 'ba', emoji: '🖼️' },
-          { label: 'بنر البوت', value: 'bb', emoji: '🎨' }, { label: 'الستاتس', value: 'bs', emoji: '💬' },
-          { label: 'الحالة', value: 'bp', emoji: '🟢' }, { label: '+ أدمن', value: 'aa', emoji: '➕' },
-          { label: '- أدمن', value: 'da', emoji: '➖' }, { label: '+ أوانر', value: 'ao', emoji: '👑' },
-          { label: '- أوانر', value: 'do', emoji: '🚫' }
-        ]);
-        const aMsg = await message.channel.send({ embeds: [makeEmbed('⚙️', '```\nاختر\n```', CONFIG.COLORS.PRIMARY)], components: [new ActionRowBuilder().addComponents(am)] });
-        try {
-          const aI = await aMsg.awaitMessageComponent({ filter: i => i.customId === 'am' && i.user.id === message.author.id, time: 30000 });
-          await aI.deferUpdate();
-          const wm = async (p, t = 30000) => {
-            const pm = await message.channel.send({ embeds: [makeEmbed('📝', `\`\`\`\n${p}\n\`\`\``, CONFIG.COLORS.WARNING)] });
-            try { const c = await message.channel.awaitMessages({ filter: m => m.author.id === message.author.id, max: 1, time, errors: ['time'] }); const r = c.first().content; try { await pm.delete(); } catch {} try { await c.first().delete(); } catch {} return r; } catch { try { await pm.delete(); } catch {} return null; }
+        
+        const adminEmbed = new EmbedBuilder()
+          .setAuthor({ name: '⚙️ لوحة التحكم' })
+          .setDescription('```\nاختر الإعداد المطلوب\n```')
+          .setColor(CONFIG.COLORS.PRIMARY)
+          .setFooter({ text: CONFIG.FOOTER })
+          .setTimestamp();
+
+        const adminMenu = new StringSelectMenuBuilder()
+          .setCustomId('admin_menu')
+          .setPlaceholder('⚙️ اختر الإعداد...')
+          .addOptions([
+            {
+              label: '✏️ اسم البوت',
+              description: 'تغيير اسم البوت',
+              value: 'name',
+              emoji: '✏️'
+            },
+            {
+              label: '🖼️ صورة البوت',
+              description: 'تغيير صورة البوت',
+              value: 'avatar',
+              emoji: '🖼️'
+            },
+            {
+              label: '🎨 بنر البوت',
+              description: 'تغيير بنر البوت',
+              value: 'banner',
+              emoji: '🎨'
+            },
+            {
+              label: '💬 حالة البوت',
+              description: 'تغيير رسالة النشاط',
+              value: 'status',
+              emoji: '💬'
+            },
+            {
+              label: '🟢 وضع البوت',
+              description: 'متصل / بعيد / مشغول / مخفي',
+              value: 'presence',
+              emoji: '🟢'
+            },
+            {
+              label: '➕ إضافة أدمن',
+              description: 'إضافة مشرف جديد',
+              value: 'add_admin',
+              emoji: '➕'
+            },
+            {
+              label: '➖ حذف أدمن',
+              description: 'إزالة مشرف',
+              value: 'remove_admin',
+              emoji: '➖'
+            },
+            {
+              label: '👑 إضافة أوونر',
+              description: 'إضافة مالك جديد',
+              value: 'add_owner',
+              emoji: '👑'
+            },
+            {
+              label: '🚫 حذف أوونر',
+              description: 'إزالة مالك',
+              value: 'remove_owner',
+              emoji: '🚫'
+            }
+          ]);
+
+        const adminRow = new ActionRowBuilder().addComponents(adminMenu);
+        const adminMsg = await message.channel.send({
+          embeds: [adminEmbed],
+          components: [adminRow]
+        });
+
+        const collector = adminMsg.createMessageComponentCollector({
+          filter: i => i.user.id === message.author.id,
+          time: 60000
+        });
+
+        collector.on('collect', async (interaction) => {
+          const choice = interaction.values[0];
+
+          // دالة انتظار الرد
+          const waitForReply = async (promptText, timeout = 30000) => {
+            const promptEmbed = new EmbedBuilder()
+              .setAuthor({ name: '📝 إدخال' })
+              .setDescription(`\`\`\`\n${promptText}\n\`\`\``)
+              .setColor(CONFIG.COLORS.WARNING)
+              .setFooter({ text: CONFIG.FOOTER });
+
+            const promptMsg = await message.channel.send({ embeds: [promptEmbed] });
+
+            try {
+              const collected = await message.channel.awaitMessages({
+                filter: m => m.author.id === message.author.id,
+                max: 1,
+                time: timeout,
+                errors: ['time']
+              });
+
+              const reply = collected.first().content;
+              await promptMsg.delete().catch(() => {});
+              await collected.first().delete().catch(() => {});
+              return reply;
+            } catch {
+              await promptMsg.delete().catch(() => {});
+              return null;
+            }
           };
-          switch (aI.values[0]) {
-            case 'bn': { const n = await wm('الاسم'); if (!n) break; try { await client.user.setUsername(n); await aMsg.edit({ embeds: [makeEmbed('✅', `\`\`\`\n${n}\n\`\`\``, CONFIG.COLORS.SUCCESS)], components: [] }); } catch (e) { await aMsg.edit({ embeds: [makeEmbed('❌', e.message, CONFIG.COLORS.ERROR)], components: [] }); } break; }
-            case 'ba': { const u = await wm('رابط الصورة'); if (!u) break; try { await client.user.setAvatar(u); await aMsg.edit({ embeds: [makeEmbed('✅', '```\nتم\n```', CONFIG.COLORS.SUCCESS)], components: [] }); } catch (e) { await aMsg.edit({ embeds: [makeEmbed('❌', e.message, CONFIG.COLORS.ERROR)], components: [] }); } break; }
-            case 'bb': { const u = await wm('رابط البنر'); if (!u) break; try { await client.user.setBanner(u); await aMsg.edit({ embeds: [makeEmbed('✅', '```\nتم\n```', CONFIG.COLORS.SUCCESS)], components: [] }); } catch (e) { await aMsg.edit({ embeds: [makeEmbed('❌', e.message, CONFIG.COLORS.ERROR)], components: [] }); } break; }
-            case 'bs': { const s = await wm('الستاتس'); if (!s) break; client.user.setActivity(s, { type: 0 }); await aMsg.edit({ embeds: [makeEmbed('✅', `\`\`\`\n${s}\n\`\`\``, CONFIG.COLORS.SUCCESS)], components: [] }); break; }
-            case 'bp': {
-              const pm = new StringSelectMenuBuilder().setCustomId('pp').setPlaceholder('الحالة...').addOptions([{ label: 'متصل', value: 'online', emoji: '🟢' }, { label: 'بعيد', value: 'idle', emoji: '🟡' }, { label: 'مشغول', value: 'dnd', emoji: '🔴' }, { label: 'مخفي', value: 'invisible', emoji: '⚫' }]);
-              await aMsg.edit({ components: [new ActionRowBuilder().addComponents(pm)] });
-              try { const pi = await aMsg.awaitMessageComponent({ filter: i => i.customId === 'pp' && i.user.id === message.author.id, time: 15000 }); client.user.setPresence({ status: pi.values[0] }); await pi.update({ embeds: [makeEmbed('✅', `\`\`\`\n${pi.values[0]}\n\`\`\``, CONFIG.COLORS.SUCCESS)], components: [] }); } catch {} break;
+
+          try {
+            switch (choice) {
+              case 'name': {
+                await interaction.deferUpdate();
+                const newName = await waitForReply('اكتب الاسم الجديد للبوت:');
+                if (!newName) {
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('❌ انتهى الوقت', '```\nلم يتم التغيير\n```', CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                  break;
+                }
+
+                try {
+                  await client.user.setUsername(newName);
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('✅ نجح', `\`\`\`\nالاسم الجديد: ${newName}\n\`\`\``, CONFIG.COLORS.SUCCESS)],
+                    components: []
+                  });
+                } catch (error) {
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('❌ خطأ', `\`\`\`\n${error.message}\n\`\`\``, CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                }
+                break;
+              }
+
+              case 'avatar': {
+                await interaction.deferUpdate();
+                const avatarURL = await waitForReply('ضع رابط الصورة الجديدة:');
+                if (!avatarURL) {
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('❌ انتهى الوقت', '```\nلم يتم التغيير\n```', CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                  break;
+                }
+
+                try {
+                  await client.user.setAvatar(avatarURL);
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('✅ نجح', '```\nتم تغيير صورة البوت\n```', CONFIG.COLORS.SUCCESS)],
+                    components: []
+                  });
+                } catch (error) {
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('❌ خطأ', `\`\`\`\n${error.message}\n\`\`\``, CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                }
+                break;
+              }
+
+              case 'banner': {
+                await interaction.deferUpdate();
+                const bannerURL = await waitForReply('ضع رابط البنر الجديد:');
+                if (!bannerURL) {
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('❌ انتهى الوقت', '```\nلم يتم التغيير\n```', CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                  break;
+                }
+
+                try {
+                  await client.user.setBanner(bannerURL);
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('✅ نجح', '```\nتم تغيير البنر\n```', CONFIG.COLORS.SUCCESS)],
+                    components: []
+                  });
+                } catch (error) {
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('❌ خطأ', `\`\`\`\n${error.message}\n\`\`\``, CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                }
+                break;
+              }
+
+              case 'status': {
+                await interaction.deferUpdate();
+                const newStatus = await waitForReply('اكتب حالة النشاط الجديدة:');
+                if (!newStatus) {
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('❌ انتهى الوقت', '```\nلم يتم التغيير\n```', CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                  break;
+                }
+
+                client.user.setActivity(newStatus, { type: 0 });
+                await adminMsg.edit({
+                  embeds: [makeEmbed('✅ نجح', `\`\`\`\n${newStatus}\n\`\`\``, CONFIG.COLORS.SUCCESS)],
+                  components: []
+                });
+                break;
+              }
+
+              case 'presence': {
+                const presenceMenu = new StringSelectMenuBuilder()
+                  .setCustomId('presence_select')
+                  .setPlaceholder('اختر الوضع...')
+                  .addOptions([
+                    { label: 'متصل', value: 'online', emoji: '🟢' },
+                    { label: 'بعيد', value: 'idle', emoji: '🟡' },
+                    { label: 'مشغول', value: 'dnd', emoji: '🔴' },
+                    { label: 'مخفي', value: 'invisible', emoji: '⚫' }
+                  ]);
+
+                await interaction.update({
+                  embeds: [makeEmbed('🟢 اختر الوضع', '```\nاختر وضع البوت\n```', CONFIG.COLORS.WARNING)],
+                  components: [new ActionRowBuilder().addComponents(presenceMenu)]
+                });
+
+                const presenceCollector = adminMsg.createMessageComponentCollector({
+                  filter: i => i.customId === 'presence_select' && i.user.id === message.author.id,
+                  time: 15000,
+                  max: 1
+                });
+
+                presenceCollector.on('collect', async (i) => {
+                  const presenceValue = i.values[0];
+                  client.user.setPresence({ status: presenceValue });
+                  await i.update({
+                    embeds: [makeEmbed('✅ نجح', `\`\`\`\nالوضع: ${presenceValue}\n\`\`\``, CONFIG.COLORS.SUCCESS)],
+                    components: []
+                  });
+                });
+
+                presenceCollector.on('end', (collected) => {
+                  if (collected.size === 0) {
+                    adminMsg.edit({ components: [] }).catch(() => {});
+                  }
+                });
+                break;
+              }
+
+              case 'add_admin': {
+                await interaction.deferUpdate();
+                const userMention = await waitForReply('منشن العضو أو اكتب الآيدي:');
+                if (!userMention) {
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('❌ انتهى الوقت', '```\nلم يتم الإضافة\n```', CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                  break;
+                }
+
+                const userId = userMention.replace(/[<@!>]/g, '');
+                if (!guildData.admins) guildData.admins = [];
+                
+                if (guildData.admins.includes(userId)) {
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('❌ خطأ', '```\nالعضو أدمن بالفعل\n```', CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                } else {
+                  guildData.admins.push(userId);
+                  saveGuild(message.guild.id, guildData);
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('✅ نجح', `<@${userId}> الآن أدمن`, CONFIG.COLORS.SUCCESS)],
+                    components: []
+                  });
+                }
+                break;
+              }
+
+              case 'remove_admin': {
+                if (!guildData.admins || guildData.admins.length === 0) {
+                  await interaction.update({
+                    embeds: [makeEmbed('❌ فارغ', '```\nلا يوجد أدمنز\n```', CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                  break;
+                }
+
+                const removeAdminMenu = new StringSelectMenuBuilder()
+                  .setCustomId('remove_admin_select')
+                  .setPlaceholder('اختر الأدمن لحذفه...')
+                  .addOptions(
+                    guildData.admins.slice(0, 25).map(id => ({
+                      label: id,
+                      value: id
+                    }))
+                  );
+
+                await interaction.update({
+                  embeds: [makeEmbed('➖ حذف أدمن', '```\nاختر الأدمن المراد حذفه\n```', CONFIG.COLORS.WARNING)],
+                  components: [new ActionRowBuilder().addComponents(removeAdminMenu)]
+                });
+
+                const removeAdminCollector = adminMsg.createMessageComponentCollector({
+                  filter: i => i.customId === 'remove_admin_select' && i.user.id === message.author.id,
+                  time: 15000,
+                  max: 1
+                });
+
+                removeAdminCollector.on('collect', async (i) => {
+                  const removedId = i.values[0];
+                  guildData.admins = guildData.admins.filter(id => id !== removedId);
+                  saveGuild(message.guild.id, guildData);
+                  await i.update({
+                    embeds: [makeEmbed('✅ نجح', `<@${removedId}> تم حذفه من الأدمنز`, CONFIG.COLORS.SUCCESS)],
+                    components: []
+                  });
+                });
+
+                removeAdminCollector.on('end', (collected) => {
+                  if (collected.size === 0) {
+                    adminMsg.edit({ components: [] }).catch(() => {});
+                  }
+                });
+                break;
+              }
+
+              case 'add_owner': {
+                await interaction.deferUpdate();
+                const userMention = await waitForReply('منشن العضو أو اكتب الآيدي:');
+                if (!userMention) {
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('❌ انتهى الوقت', '```\nلم يتم الإضافة\n```', CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                  break;
+                }
+
+                const userId = userMention.replace(/[<@!>]/g, '');
+                if (!guildData.owners) guildData.owners = [];
+                
+                if (guildData.owners.includes(userId)) {
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('❌ خطأ', '```\nالعضو أوونر بالفعل\n```', CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                } else {
+                  guildData.owners.push(userId);
+                  saveGuild(message.guild.id, guildData);
+                  await adminMsg.edit({
+                    embeds: [makeEmbed('✅ نجح', `👑 <@${userId}> الآن أوونر`, CONFIG.COLORS.SUCCESS)],
+                    components: []
+                  });
+                }
+                break;
+              }
+
+              case 'remove_owner': {
+                if (!guildData.owners || guildData.owners.length === 0) {
+                  await interaction.update({
+                    embeds: [makeEmbed('❌ فارغ', '```\nلا يوجد أوونرز\n```', CONFIG.COLORS.ERROR)],
+                    components: []
+                  });
+                  break;
+                }
+
+                const removeOwnerMenu = new StringSelectMenuBuilder()
+                  .setCustomId('remove_owner_select')
+                  .setPlaceholder('اختر الأوونر لحذفه...')
+                  .addOptions(
+                    guildData.owners.slice(0, 25).map(id => ({
+                      label: id,
+                      value: id
+                    }))
+                  );
+
+                await interaction.update({
+                  embeds: [makeEmbed('🚫 حذف أوونر', '```\nاختر الأوونر المراد حذفه\n```', CONFIG.COLORS.WARNING)],
+                  components: [new ActionRowBuilder().addComponents(removeOwnerMenu)]
+                });
+
+                const removeOwnerCollector = adminMsg.createMessageComponentCollector({
+                  filter: i => i.customId === 'remove_owner_select' && i.user.id === message.author.id,
+                  time: 15000,
+                  max: 1
+                });
+
+                removeOwnerCollector.on('collect', async (i) => {
+                  const removedId = i.values[0];
+                  guildData.owners = guildData.owners.filter(id => id !== removedId);
+                  saveGuild(message.guild.id, guildData);
+                  await i.update({
+                    embeds: [makeEmbed('✅ نجح', `<@${removedId}> تم حذفه من الأوونرز`, CONFIG.COLORS.SUCCESS)],
+                    components: []
+                  });
+                });
+
+                removeOwnerCollector.on('end', (collected) => {
+                  if (collected.size === 0) {
+                    adminMsg.edit({ components: [] }).catch(() => {});
+                  }
+                });
+                break;
+              }
             }
-            case 'aa': { const m = await wm('@العضو'); if (!m) break; const uid = m.replace(/[<@!>]/g, ''); if (!guildData.admins) guildData.admins = []; if (guildData.admins.includes(uid)) { await aMsg.edit({ embeds: [makeEmbed('❌', 'موجود.', CONFIG.COLORS.ERROR)], components: [] }); } else { guildData.admins.push(uid); saveGuild(message.guild.id, guildData); await aMsg.edit({ embeds: [makeEmbed('✅', `<@${uid}> ✅`, CONFIG.COLORS.SUCCESS)], components: [] }); } break; }
-            case 'da': {
-              if (!guildData.admins?.length) { await aMsg.edit({ embeds: [makeEmbed('❌', 'فارغ.', CONFIG.COLORS.ERROR)], components: [] }); break; }
-              const dm = new StringSelectMenuBuilder().setCustomId('dx').setPlaceholder('اختر...').addOptions(guildData.admins.map(id => ({ label: id, value: id })));
-              await aMsg.edit({ components: [new ActionRowBuilder().addComponents(dm)] });
-              try { const di = await aMsg.awaitMessageComponent({ filter: i => i.customId === 'dx' && i.user.id === message.author.id, time: 15000 }); guildData.admins = guildData.admins.filter(id => id !== di.values[0]); saveGuild(message.guild.id, guildData); await di.update({ embeds: [makeEmbed('✅', `<@${di.values[0]}> ❌`, CONFIG.COLORS.SUCCESS)], components: [] }); } catch {} break;
-            }
-            case 'ao': { const m = await wm('@العضو'); if (!m) break; const uid = m.replace(/[<@!>]/g, ''); if (!guildData.owners) guildData.owners = []; if (guildData.owners.includes(uid)) { await aMsg.edit({ embeds: [makeEmbed('❌', 'موجود.', CONFIG.COLORS.ERROR)], components: [] }); } else { guildData.owners.push(uid); saveGuild(message.guild.id, guildData); await aMsg.edit({ embeds: [makeEmbed('✅', `<@${uid}> 👑`, CONFIG.COLORS.SUCCESS)], components: [] }); } break; }
-            case 'do': {
-              if (!guildData.owners?.length) { await aMsg.edit({ embeds: [makeEmbed('❌', 'فارغ.', CONFIG.COLORS.ERROR)], components: [] }); break; }
-              const dm = new StringSelectMenuBuilder().setCustomId('dy').setPlaceholder('اختر...').addOptions(guildData.owners.map(id => ({ label: id, value: id })));
-              await aMsg.edit({ components: [new ActionRowBuilder().addComponents(dm)] });
-              try { const di = await aMsg.awaitMessageComponent({ filter: i => i.customId === 'dy' && i.user.id === message.author.id, time: 15000 }); guildData.owners = guildData.owners.filter(id => id !== di.values[0]); saveGuild(message.guild.id, guildData); await di.update({ embeds: [makeEmbed('✅', `<@${di.values[0]}> ❌`, CONFIG.COLORS.SUCCESS)], components: [] }); } catch {} break;
-            }
+          } catch (error) {
+            console.error(error);
+            await adminMsg.edit({
+              embeds: [makeEmbed('❌ خطأ', `\`\`\`\n${error.message}\n\`\`\``, CONFIG.COLORS.ERROR)],
+              components: []
+            }).catch(() => {});
           }
-        } catch { await aMsg.edit({ components: [] }).catch(() => {}); }
+        });
+
+        collector.on('end', () => {
+          adminMsg.edit({ components: [] }).catch(() => {});
+        });
+
         try { await message.delete(); } catch {}
         break;
       }
